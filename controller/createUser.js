@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const User = require("../model/user");
 const jwt = require("jsonwebtoken");
+const { find } = require("../model/user");
 
 //Create new user and save in the Database
 const createUser = async (req, res) => {
@@ -52,6 +53,48 @@ const createUser = async (req, res) => {
   }
 };
 
+//Checking User Login Validation
+
+const userLogin = async (req, res) => {
+  try {
+    //Collect user info
+    const { email, password } = req.body;
+
+    //Checking email and password validation
+    if (!(email && password)) {
+      res.status(401).send("All the input field must be filled");
+    }
+
+    //check user in database
+    const findUser = await User.findOne({ email });
+    if (!findUser) {
+      res.status(401).send("User does not exist");
+    }
+
+    //match the password
+    if (findUser && (await bcrypt.compare(password, findUser.password))) {
+      const token = jwt.sign({ id: findUser._id, email }, "shhhhh", { expiresIn: "2h" });
+      findUser.token = token;
+      const options = {
+        expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+      };
+
+      //create token and send
+      res.status(200).cookie("token", token, options).json({
+        success: true,
+        token,
+        findUser,
+      });
+    }
+
+    res.status(400).send("email or password is incorrect");
+  } catch (error) {
+    res.sendStatus(500);
+    console.log(error);
+  }
+};
+
 //Get Existing user Data from Database
 const getExistingUser = async (_, res) => {
   try {
@@ -62,4 +105,4 @@ const getExistingUser = async (_, res) => {
   }
 };
 
-module.exports = { createUser, getExistingUser };
+module.exports = { createUser, getExistingUser, userLogin };
